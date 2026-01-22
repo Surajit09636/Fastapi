@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from ..database import SessionLocal, engine, get_db
 
 
-router = APIRouter(prefix="/posts")
+router = APIRouter(prefix="/posts", tags=["Posts"])
 
 @router.get("/")
 def get_post(db: Session = Depends(get_db), response_model=list[Schemas.Post]):
