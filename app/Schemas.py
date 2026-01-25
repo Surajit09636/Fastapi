@@ -10,10 +10,10 @@ class PostBase(BaseModel):
 class CreatePost(PostBase):
     pass
 
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool
+class Post(PostBase):
+    id: int
+    created_at: datetime
+    owner_id: int
     
     model_config = ConfigDict(from_attributes=True)
     
