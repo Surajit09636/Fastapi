@@ -7,6 +7,12 @@ class PostBase(BaseModel):
     content: str
     published: bool = True
     
+class UserOut(BaseModel):
+    id : int
+    email: EmailStr
+    
+    model_config = ConfigDict(from_attributes=True)
+    
 class CreatePost(PostBase):
     pass
 
@@ -14,6 +20,7 @@ class Post(PostBase):
     id: int
     created_at: datetime
     owner_id: int
+    owner: UserOut
     
     model_config = ConfigDict(from_attributes=True)
     
@@ -21,11 +28,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     
-class UserOut(BaseModel):
-    id : int
-    email: EmailStr
-    
-    model_config = ConfigDict(from_attributes=True)
+
     
 class UserLogin(BaseModel):
     email: EmailStr

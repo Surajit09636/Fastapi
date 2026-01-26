@@ -1,3 +1,4 @@
+from typing import Optional
 from app import oauth2
 from .. import models, Schemas
 from fastapi import FastAPI, Response, status, HTTPException, Depends, APIRouter
@@ -7,11 +8,11 @@ from ..database import SessionLocal, engine, get_db
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
-@router.get("/")
-def get_post(db: Session = Depends(get_db), response_model=list[Schemas.Post], current_user: int = Depends(oauth2.get_current_user)):
+@router.get("/", response_model=list[Schemas.Post])
+def get_post(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user), limit: int = 10, skip: int = 0, search: Optional[str] = ""):
     # cursor.execute(""" SELECT * from posts """)
     # posts = cursor.fetchall()
-    posts = db.query(models.Post).all()
+    posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
     return posts
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=Schemas.Post)
@@ -20,7 +21,7 @@ def create_post(post: Schemas.CreatePost, db: Session = Depends(get_db), current
     # new_post = cursor.fetchone()
     # conn.commit()
     print(current_user.email)
-    new_post =models.Post(**post.dict())
+    new_post =models.Post(owner_id=current_user.id, **post.dict())
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
@@ -41,7 +42,8 @@ def get_post(id: int, db: Session = Depends(get_db), response_model=Schemas.Post
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"post with id: {id} was not found"
         )
-
+        
+    
     return post
 
 
@@ -54,26 +56,37 @@ def delete_post(id: int, db: Session = Depends(get_db), current_user: int = Depe
     # deleted_post = cursor.fetchone()
     # conn.commit()
     
-    post = db.query(models.Post).filter(models.Post.id == id)
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    post = post_query.first()
 
-    if post.first() is None:
+    if post is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"post with id: {id} does not exist"
         )
+        
+    if post.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized action"
+        )
 
-    post.delete(synchronize_session=False)
+    post_query.delete(synchronize_session=False)
     db.commit()
     
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 
-@router.put("/{id}")
-def update_post(id: int, post: Schemas.CreatePost, db: Session = Depends(get_db), response_model=Schemas.Post, current_user: int = Depends(oauth2.get_current_user)):
-
+@router.put("/{id}", response_model=Schemas.Post)
+def update_post(
+    id: int,
+    post: Schemas.CreatePost,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user)
+):
     post_query = db.query(models.Post).filter(models.Post.id == id)
-    db_post = post_query.first()
+    db_post = post_query.first()   # ✅ renamed
 
     if db_post is None:
         raise HTTPException(
@@ -81,7 +94,13 @@ def update_post(id: int, post: Schemas.CreatePost, db: Session = Depends(get_db)
             detail=f"post with id: {id} does not exist"
         )
 
-    post_query.update(post.dict(), synchronize_session=False)
+    if db_post.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized action"
+        )
+
+    post_query.update(post.dict(), synchronize_session=False)  # ✅ schema dict
     db.commit()
 
     return post_query.first()
